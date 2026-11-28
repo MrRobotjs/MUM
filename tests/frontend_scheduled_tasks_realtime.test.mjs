@@ -38,3 +38,18 @@ test('other events and channels do not read the tasks again; disposal stops read
  await delay(140);assert.equal(reads,0);
  sockets[0].receive(event());stop();await delay(140);assert.equal(reads,0);
 });
+test('progress events reach the progress handler only when well formed',async t=>{
+ const {api,sockets}=await setup(t);const updates=[];let reads=0;
+ const stop=api.watchScheduledTasks(()=>reads++,update=>updates.push(update));t.after(stop);
+ sockets[0].open();await delay(140);reads=0;
+ const progress={library:'Movies',phase:'items',done:200,total:1000,current:''};
+ const send=payload=>sockets[0].receive({type:'event',event:{channel:'system.scheduled_tasks',type:'ScheduledTaskProgress',payload}});
+ send({server_id:3,scope:'libraries',progress});
+ send({server_id:0,scope:'libraries',progress});
+ send({server_id:3,scope:'other',progress});
+ send({server_id:3,scope:'libraries',progress:{...progress,phase:'unknown'}});
+ send({server_id:3,scope:'libraries',progress:{...progress,done:-1}});
+ await delay(140);
+ assert.deepEqual(updates,[{server_id:3,scope:'libraries',progress}]);
+ assert.equal(reads,0,'progress updates the list in place without a read');
+});

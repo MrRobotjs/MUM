@@ -16,6 +16,7 @@ import { isTaskRunning, useScheduledTasks } from '../../hooks/useScheduledTasks'
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { getServiceBadgeClass, getServiceIcon } from '../../config/mediaServiceMetadata';
 import { cn } from '@/lib/utils';
+import { RefreshProgress } from '../settings/RefreshProgress';
 
 /** The top bar's Activity menu: the user and library refreshes running now. */
 export const ActivityDropdown = () => {
@@ -51,7 +52,7 @@ export const ActivityDropdown = () => {
             {running.map(task => (
               <DropdownMenuItem key={task.id} className="flex cursor-pointer items-start gap-2 p-3" onClick={() => openTask(task.id)}>
                 <Spinner className="mt-0.5 size-4 text-emerald-600" />
-                <div className="flex-1 space-y-1">
+                <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-sm font-medium leading-none">
                     {task.scope === 'users' ? 'Refreshing users list' : 'Refreshing libraries list'}
                   </p>
@@ -60,6 +61,7 @@ export const ActivityDropdown = () => {
                     <span className="sr-only">{task.provider}: </span>
                     {task.server_name}
                   </span>
+                  {task.progress && <RefreshProgress scope={task.scope} progress={task.progress} />}
                   <p className="text-xs text-muted-foreground">
                     {task.state === 'recovering' ? 'Finishing an earlier run' : task.started_at ? `Started ${formatRelative(task.started_at).replace(/^Just now$/, 'just now')}` : 'Running now'}
                   </p>

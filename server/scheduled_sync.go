@@ -34,6 +34,8 @@ type scheduledSyncTask struct {
 	Finished       *string `json:"finished_at"`
 	Code           string  `json:"last_code"`
 	Attempts       int64   `json:"attempts"`
+	// Progress is how far a running refresh has got, or null.
+	Progress *refreshProgress `json:"progress"`
 }
 
 func (a *App) StartScheduler() error {
@@ -221,6 +223,8 @@ func (a *App) scheduledTasks(w http.ResponseWriter, r *http.Request) {
 		if task.State == "running" {
 			if runner != a.scheduler.runner {
 				task.State = "recovering"
+			} else {
+				task.Progress = a.currentRefreshProgress(task.Server, task.Scope)
 			}
 		} else if !running {
 			task.State = "stopped"

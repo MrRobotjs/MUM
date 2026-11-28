@@ -12,3 +12,15 @@ test('independent server refresh tasks are validated and kept separate',async()=
  for(const invalid of ['duplicate','scope','provider']){globalThis.fetch=async()=>{const p=snapshot();if(invalid==='duplicate')p.tasks[1].scope='users';if(invalid==='scope')p.tasks[0].scope='other';if(invalid==='provider')p.tasks[0].provider='unknown';return Response.json({data:p})};await assert.rejects(api.fetchScheduledTasks(actor))}
  } finally {globalThis.fetch=oldFetch;globalThis.window=oldWindow}
 });
+test('refresh progress is read for running tasks and its wording follows the phase',async()=>{
+ const api=await loadFrontend("export * from './src/lib/scheduledTasks';export {refreshProgressText} from './src/components/settings/RefreshProgress';");
+ assert.equal(api.readRefreshProgress(undefined),null);
+ assert.throws(()=>api.readRefreshProgress({library:'Movies',phase:'items',done:1,total:2}));
+ const items=api.refreshProgressText('libraries',{library:'Movies',phase:'items',done:1240,total:3100,current:''});
+ assert.equal(items.line,'Movies');assert.equal(items.percent,40);assert.match(items.detail,/1,240 of 3,100 items/);
+ const unknown=api.refreshProgressText('libraries',{library:'Movies',phase:'items',done:200,total:0,current:''});
+ assert.equal(unknown.percent,undefined);assert.match(unknown.detail,/200 items read/);
+ const shows=api.refreshProgressText('libraries',{library:'TV',phase:'episodes',done:11,total:80,current:'Breaking Bad'});
+ assert.equal(shows.line,'TV — episodes: Breaking Bad');assert.equal(shows.detail,'12 of 80 shows');
+ assert.equal(api.refreshProgressText('users',{library:'',phase:'list',done:0,total:0,current:''}).line,'Reading the users list');
+});

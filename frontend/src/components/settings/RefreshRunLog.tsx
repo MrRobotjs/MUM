@@ -10,6 +10,8 @@ import { Link } from '@tanstack/react-router';
 import { Poster } from '../library/LibraryOverview';
 import { appLinks } from '../../router/appLinks';
 import { useServerRoutes } from '@/lib/serverRoutes';
+import { RefreshProgress } from './RefreshProgress';
+import type { RefreshProgress as Progressing } from '../../lib/scheduledTasks';
 import { fetchRefreshRuns, type RefreshItemChange, type RefreshLogEntry, type RefreshLogLevel, type RefreshRun, type RefreshRunOutcome } from '../../lib/refreshRuns';
 
 // A refresh task's recent runs under its details: the newest run open, older
@@ -72,15 +74,15 @@ export function runDuration(run: RefreshRun): string {
   return seconds % 60 ? `${minutes}m ${seconds % 60}s` : `${minutes}m`;
 }
 
-export function RefreshRunLog({ server, scope, runningSince }: { server: number; scope: 'users' | 'libraries'; runningSince: string | null }) {
+export function RefreshRunLog({ server, scope, runningSince, progress }: { server: number; scope: 'users' | 'libraries'; runningSince: string | null; progress?: Progressing | null }) {
   const { user, isAdministrator } = useAuth();
   const { formatTimestamp } = useAccountDisplay();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   const serverSlug = useServerRoutes().slugFor(server);
   // Cached per signed-in session, so one person's log never shows after another signs in.
   const key = isAdministrator && user?.uuid && session.accessToken ? ['refresh-runs', user.uuid, session.accessToken, server, scope] as const : null;
-  const { data, error, isLoading, mutate } = useSWR(key, ([, , , id, s]) => fetchRefreshRuns(id, s), { refreshInterval: 10000 });
-  // Read the log again as soon as the running refresh finishes.
+  // Runs are saved when they finish, so the log is read on open and again when the running refresh finishes.
+  const { data, error, isLoading, mutate } = useSWR(key, ([, , , id, s]) => fetchRefreshRuns(id, s));
   const wasRunning = useRef(runningSince);
   useEffect(() => {
     if (wasRunning.current && !runningSince) void mutate().catch(() => {});
@@ -90,9 +92,12 @@ export function RefreshRunLog({ server, scope, runningSince }: { server: number;
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Run log</h3>
-      {runningSince && <div className="flex items-center gap-2 rounded-lg border bg-card p-3 text-sm">
-        <Spinner className="size-4 text-muted-foreground" />
-        <span>In progress since {formatTimestamp(runningSince)}. Its log appears here when it finishes.</span>
+      {runningSince && <div className="space-y-2 rounded-lg border bg-card p-3 text-sm">
+        <div className="flex items-center gap-2">
+          <Spinner className="size-4 text-muted-foreground" />
+          <span>In progress since {formatTimestamp(runningSince)}. Its log appears here when it finishes.</span>
+        </div>
+        {progress && <RefreshProgress scope={scope} progress={progress} />}
       </div>}
       {error ? <p className="text-sm text-muted-foreground">The run log couldn’t be loaded.</p>
         : isLoading && !data ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4 text-muted-foreground" />Loading the run log…</div>

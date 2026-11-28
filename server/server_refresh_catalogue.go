@@ -96,7 +96,10 @@ func (a *App) refreshServerCatalogues(ctx context.Context, server ManagedServer,
 }
 
 func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary, provider *serverConnection, claim *serverRefreshClaim, log *refreshLog) error {
-	items, err := provider.catalogueItems(ctx, library.External, library.Kind, func(int, int) {})
+	a.setRefreshProgress(claim, refreshProgress{Library: library.Name, Phase: "items"})
+	items, err := provider.catalogueItems(ctx, library.External, library.Kind, func(fetched, total int) {
+		a.setRefreshProgress(claim, refreshProgress{Library: library.Name, Phase: "items", Done: fetched, Total: max(total, 0)})
+	})
 	if err != nil {
 		return err
 	}
@@ -199,7 +202,7 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	var totals episodeSyncResult
 	var changedItems []refreshLogItem
 	children := "episodes"
-	for _, show := range shows {
+	for n, show := range shows {
 		child, ok := childrenOf(show.Kind)
 		if !ok || !childCatalogueSupported(library.Provider, child) {
 			continue
@@ -207,6 +210,7 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 		if show.Kind == "album" {
 			children = "tracks"
 		}
+		a.setRefreshProgress(claim, refreshProgress{Library: library.Name, Phase: children, Done: n, Total: len(shows), Current: show.Title})
 		result, err := a.syncChildrenForRefresh(ctx, child, claim.Actor, "", library, provider, show, false, claim)
 		if err != nil {
 			if !errors.Is(err, errEpisodeRead) || ctx.Err() != nil {

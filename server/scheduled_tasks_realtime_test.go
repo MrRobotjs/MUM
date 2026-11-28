@@ -47,7 +47,7 @@ func TestScheduledTasksChannelAnnouncesRefreshStartAndFinish(t *testing.T) {
 	if err := a.runOneServerRefreshScope(t.Context(), "users"); err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
+	for changes := 0; changes < 2; {
 		deadline, cancel := context.WithTimeout(ctx, 3*time.Second)
 		err := wsjson.Read(deadline, c, &message)
 		cancel()
@@ -55,6 +55,10 @@ func TestScheduledTasksChannelAnnouncesRefreshStartAndFinish(t *testing.T) {
 			t.Fatal("missing task event", err)
 		}
 		event, _ := message["event"].(map[string]any)
+		if event["type"] == "ScheduledTaskProgress" {
+			continue
+		}
+		changes++
 		payload, _ := event["payload"].(map[string]any)
 		if event["channel"] != scheduledTasksChannel || event["type"] != "ScheduledTasksChanged" || payload == nil || len(payload) != 0 {
 			t.Fatal(message)
@@ -63,5 +67,53 @@ func TestScheduledTasksChannelAnnouncesRefreshStartAndFinish(t *testing.T) {
 	var state string
 	if err := s.reader.QueryRow("SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='users'", id).Scan(&state); err != nil || state == "running" {
 		t.Fatal("the finish event came before the finish committed", state, err)
+	}
+}
+
+// Progress events are limited to about one a second, except when the library
+// or phase changes, and progress is forgotten when the refresh ends.
+func TestRefreshProgressEventsAreThrottledAndCleared(t *testing.T) {
+	a, _ := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	server := httptest.NewServer(a)
+	defer server.Close()
+	c, ctx := dialClient(t, server.URL, token)
+	defer c.CloseNow()
+	if err := wsjson.Write(ctx, c, socketCommand{Type: "subscribe", Channels: []string{scheduledTasksChannel}}); err != nil {
+		t.Fatal(err)
+	}
+	var message map[string]any
+	if err := wsjson.Read(ctx, c, &message); err != nil || message["type"] != "subscriptions" {
+		t.Fatal(message, err)
+	}
+	claim := &serverRefreshClaim{Server: 9, Scope: "libraries"}
+	a.setRefreshProgress(claim, refreshProgress{Library: "Movies", Phase: "items", Done: 200, Total: 1000})
+	a.setRefreshProgress(claim, refreshProgress{Library: "Movies", Phase: "items", Done: 400, Total: 1000}) // within a second: not sent
+	a.setRefreshProgress(claim, refreshProgress{Library: "Shows", Phase: "items", Done: 0, Total: 50})      // new library: sent
+	for _, want := range []string{"Movies", "Shows"} {
+		deadline, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err := wsjson.Read(deadline, c, &message)
+		cancel()
+		if err != nil {
+			t.Fatal(err)
+		}
+		event, _ := message["event"].(map[string]any)
+		payload, _ := event["payload"].(map[string]any)
+		progress, _ := payload["progress"].(map[string]any)
+		if event["type"] != "ScheduledTaskProgress" || payload["server_id"] != float64(9) || payload["scope"] != "libraries" || progress["library"] != want {
+			t.Fatal(message)
+		}
+	}
+	deadline, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer cancel()
+	if err := wsjson.Read(deadline, c, &message); err == nil {
+		t.Fatal("throttled progress was sent", message)
+	}
+	if p := a.currentRefreshProgress(9, "libraries"); p == nil || p.Library != "Shows" || p.Total != 50 {
+		t.Fatal(p)
+	}
+	a.clearRefreshProgress(claim)
+	if a.currentRefreshProgress(9, "libraries") != nil {
+		t.Fatal("progress kept after the refresh ended")
 	}
 }

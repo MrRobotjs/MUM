@@ -3,6 +3,7 @@ export type MessageType =
 	| 'HistoryInvalidated'
 	| 'NotificationInvalidated'
 	| 'ScheduledTasksChanged'
+	| 'ScheduledTaskProgress'
 	| 'ServerHealth'
   | 'ChatMessage'
   | 'OperationalEvent'

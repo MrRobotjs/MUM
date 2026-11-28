@@ -100,6 +100,8 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 	}
 	a.tasksChanged()
 	defer a.tasksChanged() // after the finish below has committed
+	defer a.clearRefreshProgress(claim)
+	a.setRefreshProgress(claim, refreshProgress{Phase: "list"})
 	started := utcTimestamp(time.Now())
 	log := &refreshLog{}
 	var server ManagedServer

@@ -8,7 +8,10 @@ export const useScheduledTasks=()=>{
  const{user,isAdministrator}=useAuth(),actor=isAdministrator?user?.uuid:undefined;
  const state=useSWR(actor?['/api/settings/scheduled-tasks',actor]:null,([,owner]:[string,string])=>fetchScheduledTasks(owner),{refreshInterval:60000,keepPreviousData:false});
  // The server announces task changes; the 60s read only covers a missed event.
- useEffect(()=>{if(actor)return watchScheduledTasks(()=>{void state.mutate().catch(()=>{});});},[actor,state.mutate]);
+ useEffect(()=>{if(actor)return watchScheduledTasks(()=>{void state.mutate().catch(()=>{});},update=>{
+  // Progress is merged into the list in place; only a running task takes it.
+  void state.mutate(current=>current&&current.actor_uuid===actor?{...current,tasks:current.tasks.map(t=>t.server_id===update.server_id&&t.scope===update.scope&&t.state==='running'?{...t,progress:update.progress}:t)}:current,{revalidate:false}).catch(()=>{});
+ });},[actor,state.mutate]);
  useEffect(()=>{const changed=(e:Event)=>{if((e as CustomEvent<{actor_uuid:string}>).detail?.actor_uuid===actor)void state.mutate().catch(()=>{});};window.addEventListener(TASKS_EVENT,changed);return()=>window.removeEventListener(TASKS_EVENT,changed);},[actor,state.mutate]);
  const snapshot=state.data?.actor_uuid===actor&&!state.error?state.data:undefined;
  const tasks:ScheduledTask[]=snapshot?snapshot.tasks.map(t=>({...t,id:`provider-sync-${t.server_id}-${t.scope}`,name:t.scope==='users'?'Refresh users list':'Refresh libraries list',type:'Synchronization',side:'Server',channels:[],coalesce:true,misfire_grace_time:null,actor_uuid:snapshot.actor_uuid,configuration_available:snapshot.configuration_available,base:snapshot})):[];

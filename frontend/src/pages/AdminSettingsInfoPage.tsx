@@ -487,7 +487,7 @@ export const AdminSettingsInfoPage = () => {
               </div>
             </div>
 
-            {String(selectedTask.id).startsWith('provider-sync-') && <RefreshRunLog server={selectedTask.server_id} scope={selectedTask.scope} runningSince={(liveSelectedTask??selectedTask).state === 'running' ? (liveSelectedTask??selectedTask).started_at : null} />}
+            {String(selectedTask.id).startsWith('provider-sync-') && <RefreshRunLog server={selectedTask.server_id} scope={selectedTask.scope} runningSince={(liveSelectedTask??selectedTask).state === 'running' ? (liveSelectedTask??selectedTask).started_at : null} progress={(liveSelectedTask??selectedTask).progress} />}
           </div>
         )}
       </ResponsiveDialog>

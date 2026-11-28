@@ -72,7 +72,7 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 			if f.mode == "catalog" {
 				entities = []string{"unknown"}
 			}
-			json.NewEncoder(w).Encode(map[string]any{"entities": entities, "actions": romm.PermissionActions, "ownable_entities": romm.OwnableEntities})
+			json.NewEncoder(w).Encode(map[string]any{"entities": entities, "actions": romm.PermissionActions})
 		case "GET /proxy/api/permissions/groups":
 			hidden := []romm.Hidden{}
 			if f.mode == "restricted-default" {

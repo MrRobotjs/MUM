@@ -31,7 +31,7 @@ func newRomMPermissionFixture(t *testing.T, variant string) *rommPermissionFixtu
 			http.Error(w, "invalid", 400)
 			return
 		}
-		catalog := map[string]any{"entities": []string{"platforms", "roms", "collections", "playlists", "firmware", "assets", "devices", "users", "tasks", "logs", "streaming", "emulation"}, "actions": []string{"read", "write", "delete"}, "ownable_entities": []string{"collections", "playlists", "assets", "devices", "streaming", "emulation"}}
+		catalog := map[string]any{"entities": []string{"platforms", "roms", "collections", "playlists", "firmware", "assets", "devices", "users", "tasks", "logs", "streaming", "emulation"}, "actions": []string{"read", "write", "delete"}}
 		user := map[string]any{"id": 2, "username": "Reader", "email": "reader@example.invalid", "enabled": true, "role": "user", "permission_group_id": nil, "hashed_password": "never-persist"}
 		grant := map[string]any{"entity": "roms", "action": "read", "own_only": false}
 		group := map[string]any{"id": 1, "is_default": true, "grants": []any{grant}, "hidden": []any{}, "age_limit": nil, "hide_unrated_roms": false}
@@ -182,6 +182,8 @@ func TestRomMEffectivePermissions(t *testing.T) {
 		{"hidden", false, true, true, true, `["7"]`}, {"hidden-union", false, true, true, true, "[]"},
 		{"content", true, true, true, true, "[]"}, {"content-override", true, true, false, true, "[]"},
 		{"admin", true, true, false, true, "[]"}, {"disabled", true, true, false, false, "[]"},
+		// An own_only ROM read still lists every ROM, so it is full access.
+		{"own-only", true, true, false, true, "[]"},
 	} {
 		t.Run("policy-"+tc.name, func(t *testing.T) {
 			f := newRomMPermissionFixture(t, tc.name)
@@ -221,7 +223,7 @@ func TestRomMInvalidSnapshotPreservesAccounts(t *testing.T) {
 		return fmt.Sprint(uuid, settings, ids, active, downloads)
 	}
 	before := snapshot()
-	for _, v := range []string{"role", "catalog", "membership", "identity", "missing-group", "missing-user-membership", "missing-policy-membership", "missing-group-age", "missing-policy-age", "missing-unrated", "missing-overrides", "unknown-grant", "own-only", "missing-own-only", "duplicate-grants", "duplicate-overrides", "missing-granted", "hidden-entity", "hidden-id", "duplicate-hidden", "age", "duplicate-group", "duplicate-default", "policy-error", "too-many-users"} {
+	for _, v := range []string{"role", "catalog", "membership", "identity", "missing-group", "missing-user-membership", "missing-policy-membership", "missing-group-age", "missing-policy-age", "missing-unrated", "missing-overrides", "unknown-grant", "missing-own-only", "duplicate-grants", "duplicate-overrides", "missing-granted", "hidden-entity", "hidden-id", "duplicate-hidden", "age", "duplicate-group", "duplicate-default", "policy-error", "too-many-users"} {
 		t.Run(v, func(t *testing.T) {
 			f.setVariant(v)
 			var audits int

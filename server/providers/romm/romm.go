@@ -111,7 +111,6 @@ func (s *Server) CheckCredentials(name, pw string) error {
 var (
 	PermissionEntities = []string{"platforms", "roms", "collections", "playlists", "firmware", "assets", "devices", "users", "tasks", "logs", "streaming", "emulation"}
 	PermissionActions  = []string{"read", "write", "delete"}
-	OwnableEntities    = []string{"collections", "playlists", "assets", "devices", "streaming", "emulation"}
 )
 
 type Grant struct {
@@ -213,8 +212,10 @@ func sameVocabulary(actual, expected []string) bool {
 	slices.Sort(b)
 	return slices.Equal(a, b)
 }
-func validGrant(entity, action string, ownOnly bool) bool {
-	return slices.Contains(PermissionEntities, entity) && slices.Contains(PermissionActions, action) && (!ownOnly || slices.Contains(OwnableEntities, entity))
+// validGrant: any entity may carry own_only. RomM's coarse scopes ignore it,
+// so an own_only read of ROMs still lists every ROM and counts as access.
+func validGrant(entity, action string) bool {
+	return slices.Contains(PermissionEntities, entity) && slices.Contains(PermissionActions, action)
 }
 func ageValid(age *int) bool { return age == nil || *age >= 0 && *age <= 21 }
 func groupIDEqual(first, second *int64) bool {
@@ -316,7 +317,7 @@ func (s *Server) UsersWithLibraries(ctx context.Context, platforms []provider.Li
 		}
 		grants := map[string]bool{}
 		for _, grant := range *group.Grants {
-			if grant.OwnOnly == nil || !validGrant(grant.Entity, grant.Action, *grant.OwnOnly) {
+			if grant.OwnOnly == nil || !validGrant(grant.Entity, grant.Action) {
 				return nil, provider.ErrConflict
 			}
 			key := grant.Entity + "." + grant.Action
@@ -327,7 +328,7 @@ func (s *Server) UsersWithLibraries(ctx context.Context, platforms []provider.Li
 		}
 		seenOverrides := map[string]bool{}
 		for _, override := range *policy.Overrides {
-			if override.Granted == nil || override.OwnOnly == nil || !validGrant(override.Entity, override.Action, *override.Granted && *override.OwnOnly) {
+			if override.Granted == nil || override.OwnOnly == nil || !validGrant(override.Entity, override.Action) {
 				return nil, provider.ErrConflict
 			}
 			key := override.Entity + "." + override.Action
@@ -386,12 +387,11 @@ func (s *Server) readGroups(ctx context.Context) (map[int64]PermissionGroup, int
 	var catalog struct {
 		Entities []string `json:"entities"`
 		Actions  []string `json:"actions"`
-		Ownable  []string `json:"ownable_entities"`
 	}
 	if err := s.get(ctx, "/api/permissions/catalog", &catalog); err != nil {
 		return nil, 0, err
 	}
-	if !sameVocabulary(catalog.Entities, PermissionEntities) || !sameVocabulary(catalog.Actions, PermissionActions) || !sameVocabulary(catalog.Ownable, OwnableEntities) {
+	if !sameVocabulary(catalog.Entities, PermissionEntities) || !sameVocabulary(catalog.Actions, PermissionActions) {
 		return nil, 0, provider.ErrConflict
 	}
 	var groups []PermissionGroup

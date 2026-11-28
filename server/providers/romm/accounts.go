@@ -110,7 +110,7 @@ func reviewPolicyValid(policy UserPermissions, group PermissionGroup) bool {
 	grants := map[string]bool{}
 	for _, g := range *group.Grants {
 		key := g.Entity + "." + g.Action
-		if grants[key] || g.OwnOnly == nil || !validGrant(g.Entity, g.Action, *g.OwnOnly) {
+		if grants[key] || g.OwnOnly == nil || !validGrant(g.Entity, g.Action) {
 			return false
 		}
 		grants[key] = true
@@ -118,7 +118,7 @@ func reviewPolicyValid(policy UserPermissions, group PermissionGroup) bool {
 	overrides := map[string]bool{}
 	for _, o := range *policy.Overrides {
 		key := o.Entity + "." + o.Action
-		if overrides[key] || o.Granted == nil || o.OwnOnly == nil || !validGrant(o.Entity, o.Action, *o.Granted && *o.OwnOnly) {
+		if overrides[key] || o.Granted == nil || o.OwnOnly == nil || !validGrant(o.Entity, o.Action) {
 			return false
 		}
 		overrides[key] = true
@@ -164,7 +164,7 @@ func OverridesMatch(actual []Override, read bool) bool {
 	seen := map[string]bool{}
 	for _, o := range actual {
 		key := o.Entity + "." + o.Action
-		if seen[key] || o.Granted == nil || o.OwnOnly == nil || *o.OwnOnly || !validGrant(o.Entity, o.Action, false) {
+		if seen[key] || o.Granted == nil || o.OwnOnly == nil || *o.OwnOnly || !validGrant(o.Entity, o.Action) {
 			return false
 		}
 		seen[key] = true

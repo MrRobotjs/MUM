@@ -18,7 +18,7 @@ func historyFixture(t *testing.T, prefix, log, items string) (*Server, *[]string
 	t.Helper()
 	var requests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests = append(requests, r.Method+" "+r.URL.Path+" "+r.Header.Get("X-Emby-Token"))
+		requests = append(requests, r.Method+" "+r.URL.Path+" "+requestKey(r))
 		switch r.URL.Path {
 		case prefix + "/System/ActivityLog/Entries":
 			if r.URL.Query().Get("StartIndex") != "0" || r.URL.Query().Get("Limit") != "50" {

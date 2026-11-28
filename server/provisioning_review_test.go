@@ -41,7 +41,7 @@ func newReviewFixtureFor(t *testing.T, kind string, failEnable bool) *reviewFixt
 		delete(f.policy, "PasswordResetProviderId")
 	}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if mediaBrowserKey(r) != "fixture-secret" {
 			http.Error(w, "bad key", 401)
 			return
 		}

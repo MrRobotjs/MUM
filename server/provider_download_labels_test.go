@@ -32,7 +32,7 @@ func newDownloadPolicyFixture(t *testing.T, provider string) *downloadPolicyFixt
 			http.Error(w, "unexpected write", 500)
 			return
 		}
-		key := r.Header.Get("X-Emby-Token")
+		key := mediaBrowserKey(r)
 		if provider == "kavita" || provider == "komga" {
 			key = r.Header.Get("x-api-key")
 		}

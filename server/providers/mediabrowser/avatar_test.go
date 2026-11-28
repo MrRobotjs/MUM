@@ -15,7 +15,7 @@ import (
 func TestUserAvatarImage(t *testing.T) {
 	var requests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests = append(requests, r.URL.Path+"?"+r.URL.RawQuery+" "+r.Header.Get("X-Emby-Token"))
+		requests = append(requests, r.URL.Path+"?"+r.URL.RawQuery+" "+requestKey(r))
 		if r.URL.Path != "/Users/abc123/Images/Primary" {
 			http.NotFound(w, r)
 			return

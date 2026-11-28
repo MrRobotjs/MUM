@@ -39,7 +39,7 @@ func (u *catalogueUpstream) setItems(n int, prefix string) {
 func newCatalogueUpstream(t *testing.T) (*catalogueUpstream, *httptest.Server) {
 	u := &catalogueUpstream{libraryType: "movies"}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if mediaBrowserKey(r) != "fixture-secret" {
 			w.WriteHeader(401)
 			return
 		}

@@ -51,7 +51,7 @@ func TestMediaBrowserActivityAvatarUsesBoundedProviderPath(t *testing.T) {
 				if kind == "emby" {
 					expected = "/emby" + expected
 				}
-				if r.URL.Path != expected || r.URL.Query().Get("tag") != "tag" || r.Header.Get("X-Emby-Token") != "fixture-key" {
+				if r.URL.Path != expected || r.URL.Query().Get("tag") != "tag" || mediaBrowserKey(r) != "fixture-key" {
 					t.Errorf("wrong avatar request: %s", r.URL.Path)
 				}
 				w.Header().Set("Content-Type", "image/png")
@@ -168,7 +168,7 @@ func TestActivityProviderBoundedAuthenticatedTransport(t *testing.T) {
 				if kind == "emby" {
 					expected = "/root/emby/Sessions"
 				}
-				if r.URL.RequestURI() != expected || r.Header.Get("X-Emby-Token") != "fixture-key" {
+				if r.URL.RequestURI() != expected || mediaBrowserKey(r) != "fixture-key" {
 					t.Error("wrong endpoint or auth", r.URL.RequestURI())
 				}
 				if kind == "jellyfin" && !strings.Contains(r.Header.Get("Accept"), "PascalCase") {

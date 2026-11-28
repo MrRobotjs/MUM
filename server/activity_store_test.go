@@ -28,7 +28,7 @@ func TestActivityHistoryCompleteObservationLifecycle(t *testing.T) {
 	owner, _ := s.Authenticate(t.Context(), token)
 	var payload atomic.Value
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/Sessions" || r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if r.URL.Path != "/Sessions" || mediaBrowserKey(r) != "fixture-secret" {
 			t.Error("wrong activity request")
 		}
 		_, _ = w.Write(payload.Load().([]byte))

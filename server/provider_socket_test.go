@@ -55,7 +55,7 @@ func TestProviderSocketRuntimeQueuesRedactedHintsAndReconcilesCompleteHTTP(t *te
 			fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.HasSuffix(r.URL.Path, "Sessions") {
 					reads.Add(1)
-					if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+					if mediaBrowserKey(r) != "fixture-secret" {
 						t.Error("wrong read credential")
 					}
 					json.NewEncoder(w).Encode([]any{map[string]any{"Id": "only-session", "UserId": service, "NowPlayingItem": map[string]string{"Id": "item", "Name": "Private authoritative title", "Type": "Movie"}, "PlayState": map[string]bool{"IsPaused": false}}})
@@ -71,7 +71,15 @@ func TestProviderSocketRuntimeQueuesRedactedHintsAndReconcilesCompleteHTTP(t *te
 				if provider == "jellyfin" {
 					want = "/socket"
 				}
-				if r.URL.Path != want || r.URL.Query().Get("api_key") != "fixture-secret" {
+				// Jellyfin takes the key in the Authorization header, Emby in the query.
+				key := r.URL.Query().Get("api_key")
+				if provider == "jellyfin" {
+					if key != "" {
+						t.Error("Jellyfin key sent in the URL")
+					}
+					key = mediaBrowserKey(r)
+				}
+				if r.URL.Path != want || key != "fixture-secret" {
 					t.Error("wrong socket endpoint")
 					w.WriteHeader(403)
 					return

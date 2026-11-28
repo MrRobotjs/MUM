@@ -17,7 +17,7 @@ func providerFixture(t *testing.T, kind string) (*httptest.Server, *atomic.Int32
 	t.Helper()
 	mode := &atomic.Int32{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		key := r.Header.Get("X-Emby-Token")
+		key := mediaBrowserKey(r)
 		prefix := ""
 		if kind == "emby" {
 			prefix = "/emby"

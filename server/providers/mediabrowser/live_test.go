@@ -1,6 +1,7 @@
 package mediabrowser
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -41,7 +42,15 @@ func TestLiveEnvelopeAndURLBoundaries(t *testing.T) {
 			t.Fatal(err)
 		}
 		u, _ := url.Parse(spec.URL)
-		if u.Scheme != "wss" || u.Path != want || u.Query().Get("api_key") != "private +&?" || u.Query().Get("deviceId") != "device" || len(spec.Start) == 0 {
+		// Jellyfin takes the key in the Authorization header, Emby in the query.
+		key := u.Query().Get("api_key")
+		if !emby {
+			if key != "" {
+				t.Fatal("Jellyfin key in the URL", spec.URL)
+			}
+			key = requestKey(&http.Request{Header: spec.Header})
+		}
+		if u.Scheme != "wss" || u.Path != want || key != "private +&?" || u.Query().Get("deviceId") != "device" || len(spec.Start) == 0 {
 			t.Fatal("incorrect endpoint", spec.URL)
 		}
 		if !emby && (spec.ReadTimeout != 0 || spec.PingInterval != 30*time.Second) {

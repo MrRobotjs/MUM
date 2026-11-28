@@ -22,6 +22,7 @@ import (
 type Server struct {
 	// root is the configured address, base the API address (Emby's adds /emby).
 	root, base, apiKey string
+	emby               bool
 	transport          provider.Transport
 }
 
@@ -32,10 +33,26 @@ func New(cfg provider.Config, emby bool) *Server {
 	if emby && !strings.HasSuffix(base, "/emby") {
 		base += "/emby"
 	}
-	return &Server{root: cfg.URL, base: base, apiKey: cfg.APIKey, transport: cfg.Transport}
+	return &Server{root: cfg.URL, base: base, apiKey: cfg.APIKey, emby: emby, transport: cfg.Transport}
 }
 
-func (s *Server) authorize(header http.Header) { header.Set("X-Emby-Token", s.apiKey) }
+// keyAuthorization is the standard Authorization value carrying the API key.
+// Jellyfin 12 accepts the key only this way (it turns off the older
+// X-Emby-Token header and api_key query); Emby reads X-Emby-Token.
+func (s *Server) keyAuthorization() string {
+	if strings.ContainsAny(s.apiKey, "\"\r\n") {
+		return ""
+	}
+	return `MediaBrowser Client="MUM", Device="MUM", DeviceId="mum-server", Version="1", Token="` + s.apiKey + `"`
+}
+
+func (s *Server) authorize(header http.Header) {
+	if s.emby {
+		header.Set("X-Emby-Token", s.apiKey)
+		return
+	}
+	header.Set("Authorization", s.keyAuthorization())
+}
 
 // Request sends one JSON request to an API path such as "/Users".
 func (s *Server) Request(ctx context.Context, method, endpoint string, body, out any) error {

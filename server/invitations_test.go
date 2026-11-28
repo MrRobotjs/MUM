@@ -32,7 +32,7 @@ func newProvisioningFixture(t *testing.T, mode string) *provisioningFixture {
 	t.Helper()
 	f := &provisioningFixture{mode: mode, expectedPassword: invitationPassword}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if mediaBrowserKey(r) != "fixture-secret" {
 			t.Error("missing credential header")
 			http.Error(w, "bad key", 401)
 			return

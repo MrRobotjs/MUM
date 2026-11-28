@@ -45,7 +45,7 @@ func TestActivityMonitorDurableConsentAndObservationOutcomes(t *testing.T) {
 	payload.Store([]byte(`null`))
 	var requests atomic.Int64
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/Sessions" || r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if r.URL.Path != "/Sessions" || mediaBrowserKey(r) != "fixture-secret" {
 			t.Error("wrong polling request")
 		}
 		requests.Add(1)

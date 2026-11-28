@@ -26,7 +26,7 @@ func newTerminateUpstream(t *testing.T) *terminateUpstream {
 	up.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		up.mu.Lock()
 		defer up.mu.Unlock()
-		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if mediaBrowserKey(r) != "fixture-secret" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

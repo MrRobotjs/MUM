@@ -43,7 +43,7 @@ func newRemoteFixture(t *testing.T) *remoteFixture {
 	activityExec(t, f.store, "UPDATE media_servers SET api_key='fixture-secret',url='http://jellyfin.fixture' WHERE id=?", f.server)
 	activityExec(t, f.store, "UPDATE service_accounts SET external_username='Remote Name' WHERE uuid=?", f.service)
 	f.app.ProviderHTTP = &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
-		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
+		if mediaBrowserKey(r) != "fixture-secret" {
 			t.Error("missing provider credentials")
 		}
 		switch {

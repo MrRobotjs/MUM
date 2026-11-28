@@ -17,6 +17,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { syncAllUsers, syncServerUsers, userSyncChanges, userSyncNotices } from '../lib/userSync';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '../store/mediaQueryStore';
 import {
   Select,
   SelectContent,
@@ -61,9 +62,6 @@ import {
   faTableCellsLarge,
   faMagnifyingGlass,
   faFilter,
-  faUser,
-  faEnvelope,
-  faNoteSticky,
   faSort,
   faListOl,
   faServer,
@@ -106,6 +104,7 @@ export const UsersListPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [singleEditUserId, setSingleEditUserId] = useState<string | null>(null);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const [syncingServerId, setSyncingServerId] = useState<number | null>(null);
   const [selectionAnchorUserId, setSelectionAnchorUserId] = useState<string | null>(null);
   const { syncStatus } = useSyncStatus();
@@ -121,9 +120,6 @@ export const UsersListPage = () => {
   const [role, setRole] = useState('');
   const [serverId, setServerId] = useState('all');
   const [filterType, setFilterType] = useState('none');
-  const [searchEmail, setSearchEmail] = useState('');
-  const [searchUsername, setSearchUsername] = useState('');
-  const [searchNotes, setSearchNotes] = useState('');
   const [sort, setSort] = useState('username_asc');
   const [pageSize, setPageSize] = useState(50);
 
@@ -140,13 +136,10 @@ export const UsersListPage = () => {
       role: role || undefined,
       serverId,
       filterType: filterType === 'none' ? undefined : filterType,
-      searchEmail: searchEmail || undefined,
-      searchUsername: searchUsername || undefined,
-      searchNotes: searchNotes || undefined,
       sort,
       pageSize
     }),
-    [page, search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort, pageSize]
+    [page, search, userType, role, serverId, filterType, sort, pageSize]
   );
 
   const { users, loading, error: fetchError, pagination, mutate } = useUsersPaginated(filters);
@@ -181,7 +174,7 @@ export const UsersListPage = () => {
     setPage(1);
     setSelectedUserIds(new Set());
     setSelectionAnchorUserId(null);
-  }, [search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort]);
+  }, [search, userType, role, serverId, filterType, sort]);
 
   // Selection handlers
   const toggleUserSelection = (userId: string, modifiers?: SelectionModifiers) => {
@@ -487,6 +480,161 @@ export const UsersListPage = () => {
     </DropdownMenu>
   );
 
+  // The sort and filter options, shown in the side panel on smaller screens
+  // and in a card under the search bar on desktop.
+  const optionFields = (triggerClass?: string) => ({
+    sort: (
+      <>
+        <Label htmlFor="sort">
+          <FontAwesomeIcon icon={faSort} className="mr-2" />
+          Sort by
+        </Label>
+        <Select value={sort} onValueChange={setSort}>
+          <SelectTrigger id="sort" className={triggerClass}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="username_asc">Username (A-Z)</SelectItem>
+            <SelectItem value="username_desc">Username (Z-A)</SelectItem>
+            <SelectItem value="created_desc">Date Added (Newest)</SelectItem>
+            <SelectItem value="created_asc">Date Added (Oldest)</SelectItem>
+            <SelectItem value="last_streamed_desc">Last Streamed (Recent)</SelectItem>
+            <SelectItem value="last_streamed_asc">Last Streamed (Oldest)</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    perPage: (
+      <>
+        <Label htmlFor="perPage">
+          <FontAwesomeIcon icon={faListOl} className="mr-2" />
+          Per Page
+        </Label>
+        <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
+          <SelectTrigger id="perPage" className={triggerClass}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">10 users</SelectItem>
+            <SelectItem value="20">20 users</SelectItem>
+            <SelectItem value="50">50 users</SelectItem>
+            <SelectItem value="100">100 users</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    server: (
+      <>
+        <Label htmlFor="serverId">
+          <FontAwesomeIcon icon={faServer} className="mr-2" />
+          Server
+        </Label>
+        <Select value={serverId} onValueChange={setServerId}>
+          <SelectTrigger id="serverId" className={triggerClass}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Servers</SelectItem>
+            {servers.map((server) => (
+              <SelectItem key={server.id} value={String(server.id)}>
+                <span className="inline-flex items-center gap-2">
+                  <ServiceIcon serviceType={server.service_type} className="h-4 w-4 shrink-0" />
+                  <span>{server.server_nickname}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    userType: (
+      <>
+        <Label htmlFor="userType">
+          <FontAwesomeIcon icon={faUsers} className="mr-2" />
+          User Type
+        </Label>
+        <Select value={userType} onValueChange={setUserType}>
+          <SelectTrigger id="userType" className={triggerClass}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            <SelectItem value="owner">Owner</SelectItem>
+            <SelectItem value="local">Local</SelectItem>
+            <SelectItem value="service">Service</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    filterType: (
+      <>
+        <Label htmlFor="filterType">
+          <FontAwesomeIcon icon={faFilter} className="mr-2" />
+          Filter by
+        </Label>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger id="filterType" className={triggerClass}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">All Users</SelectItem>
+            <SelectItem value="home_user">Home Users</SelectItem>
+            <SelectItem value="shares_back">Shares Back</SelectItem>
+            <SelectItem value="has_discord">Discord Linked</SelectItem>
+            <SelectItem value="no_discord">No Discord Linked</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    role: (
+      <>
+        <Label htmlFor="role">
+          <FontAwesomeIcon icon={faUserTag} className="mr-2" />
+          Filter by Role
+        </Label>
+        <Select value={role || 'all'} onValueChange={(val) => setRole(val === 'all' ? '' : val)}>
+          <SelectTrigger id="role" className={triggerClass}>
+            <SelectValue placeholder="All roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectGroup>
+              <SelectLabel>Admin Roles</SelectLabel>
+              {adminRoles.map((r) => (
+                <SelectItem key={`admin-${r.id}`} value={`admin:${r.id}`}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>User Roles</SelectLabel>
+              {userRoles.map((r) => (
+                <SelectItem key={`user-${r.id}`} value={`user:${r.id}`}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </>
+    )
+  });
+
+  const clearOptions = () => {
+    setSearch('');
+    setUserType('all');
+    setRole('');
+    setServerId('all');
+    setFilterType('none');
+    setSort('username_asc');
+    setPageSize(50);
+  };
+  const optionsChanged = userType !== 'all' || role !== '' || serverId !== 'all' || filterType !== 'none' || sort !== 'username_asc' || pageSize !== 50;
+
+  const panelFields = optionFields();
+  const cardFields = optionFields('w-full');
+
   return (
     <div className="container mx-auto px-4 py-2 space-y-6">
       <PageHeader
@@ -538,7 +686,7 @@ export const UsersListPage = () => {
         <CardContent className="flex gap-2">
           <Input
             type="text"
-            placeholder="Search by username or email..."
+            placeholder="Search by name, email or notes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -551,7 +699,7 @@ export const UsersListPage = () => {
           <Button onClick={() => mutate()}>
             <FontAwesomeIcon icon={faMagnifyingGlass} />
           </Button>
-          <Sheet open={showFilterDrawer} onOpenChange={setShowFilterDrawer}>
+          {!desktop && <Sheet open={showFilterDrawer} onOpenChange={setShowFilterDrawer}>
             <SheetTrigger asChild>
               <Button variant="secondary">
                 <FontAwesomeIcon icon={faFilter} className="mr-0 sm:mr-2" />
@@ -570,215 +718,26 @@ export const UsersListPage = () => {
               </SheetHeader>
 
               <div className="space-y-5 overflow-y-auto pr-1">
-                {/* Search */}
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</h4>
-                <Separator className="my-2" />
-                {/* Search Username */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="searchUsername">
-                    <FontAwesomeIcon icon={faUser} className="mr-2" />
-                    Search Username
-                  </Label>
-                  <Input
-                    id="searchUsername"
-                    type="text"
-                    placeholder="Search by username..."
-                    value={searchUsername}
-                    onChange={(e) => setSearchUsername(e.target.value)}
-                  />
-                </div>
-
-                {/* Search Email */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="searchEmail">
-                    <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
-                    Search Email
-                  </Label>
-                  <Input
-                    id="searchEmail"
-                    type="text"
-                    placeholder="Search by email..."
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
-                  />
-                </div>
-
-                {/* Search Notes */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="searchNotes">
-                    <FontAwesomeIcon icon={faNoteSticky} className="mr-2" />
-                    Search Notes
-                  </Label>
-                  <Input
-                    id="searchNotes"
-                    type="text"
-                    placeholder="Search by notes..."
-                    value={searchNotes}
-                    onChange={(e) => setSearchNotes(e.target.value)}
-                  />
-                </div>
-
                 {/* Basic */}
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic</h4>
                 <Separator className="my-2" />
-                {/* Sort Options */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="sort">
-                    <FontAwesomeIcon icon={faSort} className="mr-2" />
-                    Sort by
-                  </Label>
-                  <Select value={sort} onValueChange={setSort}>
-                    <SelectTrigger id="sort">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="username_asc">Username (A-Z)</SelectItem>
-                      <SelectItem value="username_desc">Username (Z-A)</SelectItem>
-                      <SelectItem value="created_desc">Date Added (Newest)</SelectItem>
-                      <SelectItem value="created_asc">Date Added (Oldest)</SelectItem>
-                      <SelectItem value="last_streamed_desc">Last Streamed (Recent)</SelectItem>
-                      <SelectItem value="last_streamed_asc">Last Streamed (Oldest)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Per Page */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="perPage">
-                    <FontAwesomeIcon icon={faListOl} className="mr-2" />
-                    Per Page
-                  </Label>
-                  <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
-                    <SelectTrigger id="perPage">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10 users</SelectItem>
-                      <SelectItem value="20">20 users</SelectItem>
-                      <SelectItem value="50">50 users</SelectItem>
-                      <SelectItem value="100">100 users</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.sort}</div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.perPage}</div>
 
                 {/* Filter */}
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Filter</h4>
                 <Separator className="my-2" />
-                {/* Server Filter */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="serverId">
-                    <FontAwesomeIcon icon={faServer} className="mr-2" />
-                    Server
-                  </Label>
-                  <Select value={serverId} onValueChange={setServerId}>
-                    <SelectTrigger id="serverId">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Servers</SelectItem>
-                      {servers.map((server) => (
-                        <SelectItem key={server.id} value={String(server.id)}>
-                          <span className="inline-flex items-center gap-2">
-                            <ServiceIcon serviceType={server.service_type} className="h-4 w-4 shrink-0" />
-                            <span>{server.server_nickname}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* User Type Filter */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="userType">
-                    <FontAwesomeIcon icon={faUsers} className="mr-2" />
-                    User Type
-                  </Label>
-                  <Select value={userType} onValueChange={setUserType}>
-                    <SelectTrigger id="userType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Users</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="service">Service</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Filter Type */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="filterType">
-                    <FontAwesomeIcon icon={faFilter} className="mr-2" />
-                    Filter by
-                  </Label>
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger id="filterType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">All Users</SelectItem>
-                      <SelectItem value="home_user">Home Users</SelectItem>
-                      <SelectItem value="shares_back">Shares Back</SelectItem>
-                      <SelectItem value="has_discord">Discord Linked</SelectItem>
-                      <SelectItem value="no_discord">No Discord Linked</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Role Filter */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="role">
-                    <FontAwesomeIcon icon={faUserTag} className="mr-2" />
-                    Filter by Role
-                  </Label>
-                  <Select value={role || 'all'} onValueChange={(val) => setRole(val === 'all' ? '' : val)}>
-                    <SelectTrigger id="role">
-                      <SelectValue placeholder="All roles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      {/* Admin Roles */}
-                      <SelectGroup>
-                        <SelectLabel>Admin Roles</SelectLabel>
-                        {adminRoles.map((r) => (
-                          <SelectItem key={`admin-${r.id}`} value={`admin:${r.id}`}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectSeparator />
-                      {/* User Roles */}
-                      <SelectGroup>
-                        <SelectLabel>User Roles</SelectLabel>
-                        {userRoles.map((r) => (
-                          <SelectItem key={`user-${r.id}`} value={`user:${r.id}`}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.server}</div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.userType}</div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.filterType}</div>
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">{panelFields.role}</div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4">
                   <Button
                     variant="ghost"
                     className="flex-1"
-                    onClick={() => {
-                      setSearch('');
-                      setSearchEmail('');
-                      setSearchUsername('');
-                      setSearchNotes('');
-                      setUserType('all');
-                      setRole('');
-                      setServerId('all');
-                      setFilterType('none');
-                      setSort('username_asc');
-                      setPageSize(50);
-                    }}
+                    onClick={clearOptions}
                   >
                     Clear All
                   </Button>
@@ -790,9 +749,30 @@ export const UsersListPage = () => {
                 </div>
               </div>
             </SheetContent>
-          </Sheet>
+          </Sheet>}
         </CardContent>
       </Card>
+
+      {/* Sort & Filter: desktop */}
+      {desktop && (
+        <Card className="bg-muted/30">
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4 xl:grid-cols-6">
+              <div className="space-y-2">{cardFields.sort}</div>
+              <div className="space-y-2">{cardFields.perPage}</div>
+              <div className="space-y-2">{cardFields.server}</div>
+              <div className="space-y-2">{cardFields.userType}</div>
+              <div className="space-y-2">{cardFields.filterType}</div>
+              <div className="space-y-2">{cardFields.role}</div>
+            </div>
+            {optionsChanged && (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={clearOptions}>Clear All</Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit bar - Shows below search, not fixed at bottom */}
       {selectedUserIds.size > 0 && (

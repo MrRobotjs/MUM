@@ -9,9 +9,6 @@ type UsersFilters = {
   role?: string;
   serverId?: string;
   filterType?: string;
-  searchEmail?: string;
-  searchUsername?: string;
-  searchNotes?: string;
   sort?: string;
 };
 

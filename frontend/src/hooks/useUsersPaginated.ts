@@ -12,9 +12,6 @@ type UsersFilters = {
   role?: string;
   serverId?: string;
   filterType?: string;
-  searchEmail?: string;
-  searchUsername?: string;
-  searchNotes?: string;
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -117,9 +114,6 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
   // Include extended filters supported by our v2 implementation
   if (filters.serverId && filters.serverId !== 'all') params.set('server_id', filters.serverId);
   if (filters.filterType) params.set('filter_type', filters.filterType);
-  if (filters.searchEmail) params.set('search_email', filters.searchEmail);
-  if (filters.searchUsername) params.set('search_username', filters.searchUsername);
-  if (filters.searchNotes) params.set('search_notes', filters.searchNotes);
   if (filters.sort) params.set('sort', filters.sort);
 
   const url=`/api/users?${params.toString()}`;

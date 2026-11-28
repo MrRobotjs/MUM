@@ -46,6 +46,19 @@ func TestSignInAccountShownByServerName(t *testing.T) {
 	if human["display_name"] != "alice-mum" || human["username"] != "alice-mum" || human["external_email"] != "mum@example.test" {
 		t.Fatal("named account", human)
 	}
+	// The one Users list search also finds the account by its email or notes.
+	if _, err := f.s.writer.Exec("UPDATE user_accounts SET notes='Prefers 4K remux' WHERE uuid=?", alice); err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"MUM@EXAMPLE", "4k%20REMUX"} {
+		w := apiRequest(f.a, "GET", "/api/users?user_type=local&search="+query, f.owner, nil, nil)
+		if rows := responseList(t, w); w.Code != 200 || len(rows) != 1 || rows[0]["uuid"] != alice {
+			t.Fatal("search", query, w.Code, rows)
+		}
+	}
+	if rows := responseList(t, apiRequest(f.a, "GET", "/api/users?user_type=local&search=nobody", f.owner, nil, nil)); len(rows) != 0 {
+		t.Fatal("unmatched search", rows)
+	}
 }
 
 // The Users list shows an account created by media server sign-in through its

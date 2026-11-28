@@ -137,11 +137,10 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		where.WriteString(" AND a.server_id=?")
 		args = append(args, id)
 	}
-	for _, filter := range []struct{ key, expression string }{{"search", userDisplayNameSQL + "||' '||coalesce(u.email,a.external_email,'')||' '||coalesce(u.notes,a.notes,'')"}, {"search_username", userDisplayNameSQL}, {"search_email", "coalesce(u.email,a.external_email,'')"}, {"search_notes", "coalesce(u.notes,a.notes,'')"}} {
-		if value := r.URL.Query().Get(filter.key); value != "" {
-			fmt.Fprintf(&where, " AND instr(lower(%s),lower(?))>0", filter.expression)
-			args = append(args, value)
-		}
+	// One search matches the name, email and notes.
+	if value := r.URL.Query().Get("search"); value != "" {
+		fmt.Fprintf(&where, " AND instr(lower(%s||' '||coalesce(u.email,a.external_email,'')||' '||coalesce(u.notes,a.notes,'')),lower(?))>0", userDisplayNameSQL)
+		args = append(args, value)
 	}
 	if r.URL.Query().Has("role") || r.URL.Query().Has("admin_role_id") && r.URL.Query().Has("user_role_id") {
 		fail(w, 400, "INVALID_ROLE_FILTER", "Select one explicit administrator or visual role ID")

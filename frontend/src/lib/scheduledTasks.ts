@@ -1,5 +1,6 @@
 import {requestJson} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
+import {onConnectionChange,subscribeToChannel} from './realtimeSocket';
 export type SyncTask={server_id:number;server_name:string;provider:string;scope:'users'|'libraries';revision:number;server_revision:number;enabled:boolean;interval_seconds:number;state:'disabled'|'stopped'|'paused'|'scheduled'|'running'|'recovering';next_run_time:string|null;started_at:string|null;finished_at:string|null;last_code:'NEVER_RUN'|'SUCCEEDED'|'WARNINGS'|'FAILED'|'CANCELLED'|'INTERRUPTED';attempts:number};
 export type TaskSnapshot={actor_uuid:string;configuration_available:boolean;runtime_available:boolean;checkpoint_error:boolean;generated_at:string;tasks:SyncTask[]};
 const positive=(v:unknown):v is number=>Number.isSafeInteger(v)&&Number(v)>0;
@@ -12,3 +13,16 @@ export async function fetchScheduledTasks(actor:string,signal?:AbortSignal):Prom
  return{actor_uuid:actor,configuration_available:p.configuration_available,runtime_available:p.runtime_available,checkpoint_error:p.checkpoint_error,generated_at:p.generated_at,tasks};
 }
 export const TASKS_EVENT='mum:scheduled-tasks-changed';
+export const TASKS_CHANNEL='system.scheduled_tasks';
+// The server says when the task list changes (a refresh starts or finishes, a
+// schedule changes); the event only triggers a read. A reconnect reads again
+// too, since events sent while disconnected are missed.
+export function watchScheduledTasks(refresh:()=>void){
+ const token=getAccessToken();
+ if(!token)return()=>{};
+ let stopped=false,timer:ReturnType<typeof setTimeout>|undefined;
+ const invalidate=()=>{if(stopped||getAccessToken()!==token||timer!==undefined)return;timer=setTimeout(()=>{timer=undefined;if(!stopped&&getAccessToken()===token)refresh();},100);};
+ const connection=onConnectionChange(connected=>{if(connected)invalidate();});
+ const unsubscribe=subscribeToChannel(TASKS_CHANNEL,event=>{if(event.channel===TASKS_CHANNEL&&event.type==='ScheduledTasksChanged')invalidate();});
+ return()=>{stopped=true;if(timer!==undefined)clearTimeout(timer);unsubscribe();connection();};
+}

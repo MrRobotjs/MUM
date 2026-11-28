@@ -149,6 +149,7 @@ func (a *App) setProviderEnabled(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	a.tasksChanged()
 	respond(w, 200, map[string]any{"id": id, "enabled": enabled})
 }
 
@@ -480,6 +481,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	a.tasksChanged()
 	status := 200
 	if create {
 		status = 201
@@ -526,6 +528,7 @@ func (a *App) deleteServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.imageCache.clear(id)
+	a.tasksChanged()
 	if a.diskImages != nil {
 		if err := a.diskImages.clear(id); err != nil {
 			a.logger.Warn("Could not clear removed server image cache", "server_id", id, "error", err)

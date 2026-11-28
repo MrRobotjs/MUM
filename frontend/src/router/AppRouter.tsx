@@ -198,7 +198,13 @@ const adminSettings = createRoute({
   component: AdminSettingsPage,
 })
 const adminSettingsGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/general', component: AdminSettingsGeneralPage })
-const adminSettingsInfo = createRoute({ getParentRoute: () => adminRoute, path: 'settings/info', component: AdminSettingsInfoPage })
+const adminSettingsInfo = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'settings/info',
+  component: AdminSettingsInfoPage,
+  // task: a scheduled task to open, from the top bar's Activity menu.
+  validateSearch: (search): { task?: string } => ({ task: typeof search.task === 'string' && /^provider-sync-\d+-(users|libraries)$/.test(search.task) ? search.task : undefined }),
+})
 const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles', component: AdminSettingsAdminRolesPage })
 const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminSettingsAdminRolesEditPage })
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })

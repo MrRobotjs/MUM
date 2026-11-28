@@ -98,6 +98,8 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 	if err != nil || claim == nil {
 		return err
 	}
+	a.tasksChanged()
+	defer a.tasksChanged() // after the finish below has committed
 	started := utcTimestamp(time.Now())
 	log := &refreshLog{}
 	var server ManagedServer

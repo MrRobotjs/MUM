@@ -94,5 +94,6 @@ func (a *App) serverRefreshSettings(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	a.tasksChanged()
 	respond(w, 200, map[string]any{"revision": in.Revision + 1})
 }

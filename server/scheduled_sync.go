@@ -167,6 +167,19 @@ func (a *App) WaitScheduler(ctx context.Context) error {
 }
 func (a *App) CloseScheduler() { a.StopScheduler(); _ = a.WaitScheduler(context.Background()) }
 
+// scheduledTasksChannel tells administrators' pages that the task list
+// changed (a refresh started or finished, or a schedule changed) so they read
+// it again. The event carries no task data: the read itself is authorized.
+const scheduledTasksChannel = "system.scheduled_tasks"
+
+// tasksChanged is called after the change has committed, never inside a
+// database transaction.
+func (a *App) tasksChanged() {
+	if a.hub != nil {
+		a.hub.publish(scheduledTasksChannel, "ScheduledTasksChanged", map[string]any{})
+	}
+}
+
 func (a *App) scheduledTasks(w http.ResponseWriter, r *http.Request) {
 	actor, ok := a.principal(w, r, true)
 	if !ok {

@@ -6,6 +6,7 @@ import {isSocketConnected, providerSocketSubscriptions, scheduledTaskState, sock
 import {getServiceBadgeClass, getServiceIcon} from '../config/mediaServiceMetadata';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useScheduledTasks } from '../hooks/useScheduledTasks';
 import { useSystemConfig } from '../hooks/useSystemConfig';
 import { PageHeader } from '../components';
@@ -255,6 +256,15 @@ export const AdminSettingsInfoPage = () => {
     setSelectedTask(task);
     setIsModalOpen(true);
   };
+  // The Activity menu links here with ?task=…: open that task once it loads.
+  const { task: linkedTask } = useSearch({ from: '/admin/settings/info' });
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!linkedTask || tasksLoading) return;
+    const task = tasks.find(t => t.id === linkedTask);
+    if (task) handleTaskClick(task);
+    void navigate({ to: '/admin/settings/info', search: {}, replace: true });
+  }, [linkedTask, tasksLoading]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);

@@ -5,6 +5,7 @@ import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
+import { ActivityDropdown } from './ActivityDropdown';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
@@ -163,6 +164,7 @@ export const EnhancedAppLayout = ({
               </BreadcrumbList>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
+              {hasAdminAccess && <ActivityDropdown />}
               {hasAdminAccess && <NotificationDropdown />}
               <ModeToggle />
             </div>
